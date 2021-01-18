@@ -1,10 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-    decl_module, decl_storage, decl_event, decl_error, ensure, StorageMap
+    decl_module, decl_storage, decl_event, decl_error, ensure, StorageMap,dispatch,
 };
 use frame_system::ensure_signed;
 use sp_std::vec::Vec;
+use sp_runtime::traits::StaticLookup;
 
 #[cfg(test)]
 mod mock;
@@ -35,6 +36,9 @@ decl_event! {
         ClaimCreated(AccountId, Vec<u8>),
         /// Event emitted when a claim is revoked by the owner. [who, claim]
         ClaimRevoked(AccountId, Vec<u8>),
+
+        //ClaimTransfer(AccountId, Vec<u8>),
+
     }
 }
 // Errors inform users that something went wrong.
@@ -79,6 +83,7 @@ decl_module! {
 
             // Emit an event that the claim was created.
             Self::deposit_event(RawEvent::ClaimCreated(sender, proof));
+     
         }
 
         /// Allow the owner to revoke their claim.
@@ -103,6 +108,24 @@ decl_module! {
 
             // Emit an event that the claim was erased.
             Self::deposit_event(RawEvent::ClaimRevoked(sender, proof));
+        }
+
+        // Allow the owner to transfer their claim.
+        #[weight = 10_000]
+        pub fn transfer_claim(origin, proof: Vec<u8>, receiver: <T::Lookup as StaticLookup>::Source)-> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+            //let receiver = ensure_signed(new)?;
+            // 存证不存在
+            ensure!(Proofs::<T>::contains_key(&proof), Error::<T>::NoSuchProof);
+            // 不是拥有者
+            let (owner, _block_number) = Proofs::<T>::get(&proof);
+            ensure!(sender == owner, Error::<T>::NotProofOwner);
+            //let (owner, block_number) = Proofs::<T>::get(&proof);
+            //ensure!(owner == sender, Error::<T>::NotClaimOwner);
+            let receiver = T::Lookup::lookup(receiver)?;
+            Proofs::<T>::insert(&proof, (receiver, frame_system::Module::<T>::block_number()));
+            Ok(())
+            //Self::deposit_event(RawEvent::ClaimTransfer(receiver, proof));
         }
     }
 }
